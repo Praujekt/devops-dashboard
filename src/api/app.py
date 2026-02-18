@@ -3,8 +3,16 @@ import psutil
 import subprocess
 import os
 import requests
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
+
+# Prometheus metrics
+api_requests = Counter('api_requests_total', 'Total API requests', ['endpoint', 'method'])
+cpu_usage = Gauge('system_cpu_percent', 'CPU usage percentage')
+memory_usage = Gauge('system_memory_percent', 'Memory usage percentage')
+disk_usage = Gauge('system_disk_percent', 'Disk usage percentage')
+k8s_pod_count = Gauge('kubernetes_pods_total', 'Total Kubernetes pods')
 
 @app.route('/')
 def index():
@@ -22,7 +30,19 @@ def api_info():
 def health():
     return jsonify({'status': 'ok'}), 200
 
+
 @app.route('/metrics')
+def metrics():
+    # Update gauges
+    cpu_usage.set(psutil.cpu_percent(interval=1))
+    memory_usage.set(psutil.virtual_memory().percent)
+    disk_usage.set(psutil.disk_usage('/').percent)
+    k8s_pod_count.set(get_pod_count())
+    
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
+
+# Rename the old metrics endpoint
+@app.route('/api/metrics')
 def get_metrics():
     return jsonify({
         'cpu_percent': psutil.cpu_percent(interval=1),

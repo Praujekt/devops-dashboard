@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-scrape-config
+data:
+  scrape-config.yaml: |
+    - job_name: 'devops-dashboard'
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+          - default
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: devops-dashboard
+      - source_labels: [__meta_kubernetes_pod_ip]
+        target_label: __address__
+        replacement: $1:5000
