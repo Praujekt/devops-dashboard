@@ -226,18 +226,35 @@
         }
         
         async function updateK8sInfo() {
-            const data = await fetchData('/metrics');
+            const data = await fetchData('/k8s/pods');
             const container = document.getElementById('k8s-info');
             
-            if (data && !data.error) {
-                container.innerHTML = `
-                    <div class="info-row">
-                        <span class="label">Running Pods:</span>
-                        <span class="metric">${data.kubernetes_pods}</span>
-                    </div>
-                `;
+            if (data && data.pods && !data.error) {
+                let html = '<div style="margin-bottom: 15px;"><strong>Total Pods:</strong> ' + data.pods.length + '</div>';
+                
+                data.pods.forEach(pod => {
+                    const age = new Date(pod.age);
+                    const ageMinutes = Math.floor((new Date() - age) / 60000);
+                    const statusColor = pod.status === 'Running' ? '#27ae60' : '#e74c3c';
+                    
+                    html += `
+                        <div style="border-left: 4px solid ${statusColor}; padding: 10px; margin: 10px 0; background: #f8f9fa; border-radius: 4px;">
+                            <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${pod.name}</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                                <span>Status: <strong style="color: ${statusColor}">${pod.status}</strong></span>
+                                <span>Ready: ${pod.ready}/${pod.total_containers}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666; margin-top: 5px;">
+                                <span>Restarts: ${pod.restarts}</span>
+                                <span>Age: ${ageMinutes}m</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
             } else {
-                container.innerHTML = '<div class="error">Unable to load K8s info</div>';
+                container.innerHTML = '<div class="error">Unable to load pod details</div>';
             }
         }
         

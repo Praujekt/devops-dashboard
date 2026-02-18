@@ -24,6 +24,8 @@ spec:
         env:
         - name: PORT
           value: {{ .Values.env.PORT | quote }}
+        - name: ENVIRONMENT
+          value: {{ .Values.env.ENVIRONMENT | quote }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         livenessProbe:

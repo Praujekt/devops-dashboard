@@ -1,0 +1,22 @@
+replicaCount: 3
+
+image:
+  repository: localhost/devops-dashboard
+  tag: v4
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 5000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+env:
+  PORT: "5000"
+  ENVIRONMENT: "production"

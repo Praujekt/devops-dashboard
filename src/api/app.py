@@ -31,10 +31,40 @@ def get_metrics():
         'kubernetes_pods': get_pod_count()
     })
 
+@app.route('/k8s/pods')
+def get_pod_details():
+    try:
+        result = subprocess.run(
+            ['kubectl', 'get', 'pods', '-n', 'default', '-o', 'json'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            import json
+            data = json.loads(result.stdout)
+            
+            pods = []
+            for item in data.get('items', []):
+                pod_info = {
+                    'name': item['metadata']['name'],
+                    'status': item['status']['phase'],
+                    'ready': sum(1 for c in item['status'].get('containerStatuses', []) if c.get('ready', False)),
+                    'total_containers': len(item['spec']['containers']),
+                    'restarts': sum(c.get('restartCount', 0) for c in item['status'].get('containerStatuses', [])),
+                    'age': item['metadata']['creationTimestamp']
+                }
+                pods.append(pod_info)
+            
+            return jsonify({'pods': pods})
+        return jsonify({'error': 'Failed to get pods'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def get_pod_count():
     try:
         result = subprocess.run(
-            ['kubectl', 'get', 'pods', '-A', '--no-headers'],
+            ['kubectl', 'get', 'pods', '-n', 'default', '--no-headers'],
             capture_output=True, 
             text=True,
             timeout=5
@@ -46,6 +76,13 @@ def get_pod_count():
     except Exception as e:
         print(f"Error getting pod count: {e}")
         return 0
+    
+@app.route('/environment')
+def get_environment():
+    return jsonify({
+        'environment': os.environ.get('ENVIRONMENT', 'unknown'),
+        'version': os.environ.get('APP_VERSION', 'v4')
+    })
     
 @app.route('/f1/next-race')
 def next_f1_race():
