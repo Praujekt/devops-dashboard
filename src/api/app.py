@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 import psutil
 import subprocess
 import os
@@ -7,7 +7,11 @@ import requests
 app = Flask(__name__)
 
 @app.route('/')
-def home():
+def index():
+    return send_from_directory('web', 'index.html')
+
+@app.route('/api')
+def api_info():
     return jsonify({
         'status': 'healthy',
         'message': 'DevOps Dashboard API'
@@ -45,49 +49,55 @@ def get_pod_count():
 @app.route('/f1/next-race')
 def next_f1_race():
     try:
-        # OpenF1 doesn't have a "next race" endpoint, so we'll use a static 2026 calendar
-        # Or we can scrape F1.com, but for now let's return current season info
         response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        # Find next race (first one in the future)
-        from datetime import datetime
-        now = datetime.utcnow()
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         
         for session in data:
-            session_date = datetime.fromisoformat(session['date_start'].replace('Z', '+00:00'))
+            session_date = datetime.fromisoformat(session['date_start'])
             if session_date > now:
                 return jsonify({
-                    'race_name': session['meeting_name'],
                     'location': session['location'],
                     'country': session['country_name'],
                     'date': session['date_start'],
-                    'circuit': session['circuit_short_name']
+                    'circuit': session['circuit_short_name'],
+                    'session_type': session['session_type']
                 })
         
         return jsonify({'message': 'No upcoming race found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/f1/latest-session')
-def latest_session():
+@app.route('/f1/latest-race')
+def latest_race():
     try:
         response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        if data:
-            latest = data[-1]  # Get most recent
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        
+        # Find most recent race in the past
+        past_races = []
+        for session in data:
+            session_date = datetime.fromisoformat(session['date_start'])
+            if session_date < now:
+                past_races.append(session)
+        
+        if past_races:
+            latest = past_races[-1]  # Last one in the list
             return jsonify({
-                'race_name': latest['meeting_name'],
                 'location': latest['location'],
                 'country': latest['country_name'],
                 'date': latest['date_start'],
                 'circuit': latest['circuit_short_name']
             })
         
-        return jsonify({'message': 'No session data found'}), 404
+        return jsonify({'message': 'No past races found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

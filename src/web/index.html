@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 3em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .value {
+            color: #333;
+        }
+        
+        .metric {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+        
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            padding: 20px;
+            background: #ffe6e6;
+            border-radius: 8px;
+        }
+        
+        .flag {
+            font-size: 2em;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏎️ F1 Dashboard</h1>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h2>🏁 Next Race</h2>
+                <div id="next-race" class="loading">Loading...</div>
+            </div>
+            
+            <div class="card">
+                <h2>🏆 Latest Race</h2>
+                <div id="latest-race" class="loading">Loading...</div>
+            </div>
+            
+            <div class="card">
+                <h2>💻 System Metrics</h2>
+                <div id="metrics" class="loading">Loading...</div>
+            </div>
+            
+            <div class="card">
+                <h2>☸️ Kubernetes</h2>
+                <div id="k8s-info" class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '';
+        
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`);
+                if (!response.ok) throw new Error('Failed to fetch');
+                return await response.json();
+            } catch (error) {
+                console.error(`Error fetching ${endpoint}:`, error);
+                return null;
+            }
+        }
+        
+        async function updateNextRace() {
+            const data = await fetchData('/f1/next-race');
+            const container = document.getElementById('next-race');
+            
+            if (data && !data.error) {
+                const date = new Date(data.date);
+                container.innerHTML = `
+                    <div class="info-row">
+                        <span class="label">Location:</span>
+                        <span class="value">${data.location}, ${data.country}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Circuit:</span>
+                        <span class="value">${data.circuit}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Date:</span>
+                        <span class="value">${date.toLocaleDateString()}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Time:</span>
+                        <span class="value">${date.toLocaleTimeString()}</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<div class="error">${data?.message || 'Unable to load race data'}</div>`;
+            }
+        }
+        
+        async function updateLatestRace() {
+            const data = await fetchData('/f1/latest-race');
+            const container = document.getElementById('latest-race');
+            
+            if (data && !data.error && !data.message) {
+                const date = new Date(data.date);
+                container.innerHTML = `
+                    <div class="info-row">
+                        <span class="label">Location:</span>
+                        <span class="value">${data.location}, ${data.country}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Circuit:</span>
+                        <span class="value">${data.circuit}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Date:</span>
+                        <span class="value">${date.toLocaleDateString()}</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `<div class="error">${data?.message || 'No past races yet this season'}</div>`;
+            }
+        }
+        
+        async function updateMetrics() {
+            const data = await fetchData('/metrics');
+            const container = document.getElementById('metrics');
+            
+            if (data && !data.error) {
+                container.innerHTML = `
+                    <div class="info-row">
+                        <span class="label">CPU:</span>
+                        <span class="metric">${data.cpu_percent.toFixed(1)}%</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Memory:</span>
+                        <span class="metric">${data.memory_percent.toFixed(1)}%</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Disk:</span>
+                        <span class="metric">${data.disk_percent.toFixed(1)}%</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<div class="error">Unable to load metrics</div>';
+            }
+        }
+        
+        async function updateK8sInfo() {
+            const data = await fetchData('/metrics');
+            const container = document.getElementById('k8s-info');
+            
+            if (data && !data.error) {
+                container.innerHTML = `
+                    <div class="info-row">
+                        <span class="label">Running Pods:</span>
+                        <span class="metric">${data.kubernetes_pods}</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<div class="error">Unable to load K8s info</div>';
+            }
+        }
+        
+        // Initial load
+        updateNextRace();
+        updateLatestRace();
+        updateMetrics();
+        updateK8sInfo();
+        
+        // Refresh every 30 seconds
+        setInterval(() => {
+            updateMetrics();
+            updateK8sInfo();
+        }, 30000);
+        
+        // Refresh F1 data every 5 minutes
+        setInterval(() => {
+            updateNextRace();
+            updateLatestRace();
+        }, 300000);
+    </script>
+</body>
+</html>
