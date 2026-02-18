@@ -45,44 +45,49 @@ def get_pod_count():
 @app.route('/f1/next-race')
 def next_f1_race():
     try:
-        response = requests.get('https://ergast.com/api/f1/current/next.json', timeout=5)
+        # OpenF1 doesn't have a "next race" endpoint, so we'll use a static 2026 calendar
+        # Or we can scrape F1.com, but for now let's return current season info
+        response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        if data['MRData']['RaceTable']['Races']:
-            race = data['MRData']['RaceTable']['Races'][0]
-            return jsonify({
-                'race_name': race['raceName'],
-                'circuit': race['Circuit']['circuitName'],
-                'location': f"{race['Circuit']['Location']['locality']}, {race['Circuit']['Location']['country']}",
-                'date': race['date'],
-                'time': race.get('time', 'TBA'),
-                'round': race['round'],
-                'season': race['season']
-            })
-        else:
-            return jsonify({'message': 'No upcoming race found'}), 404
+        # Find next race (first one in the future)
+        from datetime import datetime
+        now = datetime.utcnow()
+        
+        for session in data:
+            session_date = datetime.fromisoformat(session['date_start'].replace('Z', '+00:00'))
+            if session_date > now:
+                return jsonify({
+                    'race_name': session['meeting_name'],
+                    'location': session['location'],
+                    'country': session['country_name'],
+                    'date': session['date_start'],
+                    'circuit': session['circuit_short_name']
+                })
+        
+        return jsonify({'message': 'No upcoming race found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/f1/standings/drivers')
-def driver_standings():
+@app.route('/f1/latest-session')
+def latest_session():
     try:
-        response = requests.get('https://ergast.com/api/f1/current/driverStandings.json', timeout=5)
+        response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        standings = []
-        for item in data['MRData']['StandingsTable']['StandingsLists'][0]['DriverStandings']:
-            standings.append({
-                'position': item['position'],
-                'points': item['points'],
-                'wins': item['wins'],
-                'driver': f"{item['Driver']['givenName']} {item['Driver']['familyName']}",
-                'team': item['Constructors'][0]['name']
+        if data:
+            latest = data[-1]  # Get most recent
+            return jsonify({
+                'race_name': latest['meeting_name'],
+                'location': latest['location'],
+                'country': latest['country_name'],
+                'date': latest['date_start'],
+                'circuit': latest['circuit_short_name']
             })
         
-        return jsonify({'standings': standings})
+        return jsonify({'message': 'No session data found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
