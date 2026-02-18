@@ -8,7 +8,8 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return send_from_directory('web', 'index.html')
+    web_dir = os.path.join(os.path.dirname(__file__), '..', 'web')
+    return send_from_directory(web_dir, 'index.html')
 
 @app.route('/api')
 def api_info():
