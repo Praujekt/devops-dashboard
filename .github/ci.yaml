@@ -1,0 +1,47 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+    
+    - name: Run tests
+      run: |
+        # For now, just verify app imports work
+        python -c "from src.api.app import app; print('App loads successfully')"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t devops-dashboard:${{ github.sha }} .
+        docker tag devops-dashboard:${{ github.sha }} devops-dashboard:latest
+    
+    - name: Test Docker image
+      run: |
+        docker run -d -p 5000:5000 --name test-container devops-dashboard:latest
+        sleep 5
+        curl -f http://localhost:5000/health || exit 1
+        docker stop test-container
