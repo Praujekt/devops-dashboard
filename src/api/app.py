@@ -158,6 +158,41 @@ def latest_race():
         return jsonify({'message': 'No past races found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/f1/driver-standings')
+def driver_standings():
+    try:
+        # First get the most recent race session
+        response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
+        response.raise_for_status()
+        sessions = response.json()
+        
+        if not sessions:
+            return jsonify({'error': 'No race sessions found'}), 404
+        
+        # Get the most recent session_key
+        latest_session = sessions[-1]
+        session_key = latest_session['session_key']
+        
+        # Get championship standings for that session
+        standings_response = requests.get(f'https://api.openf1.org/v1/championship_drivers?session_key={session_key}', timeout=5)
+        standings_response.raise_for_status()
+        standings_data = standings_response.json()
+        
+        standings = []
+        for driver in standings_data:
+            standings.append({
+                'position': driver['position'],
+                'driver_number': driver['driver_number'],
+                'points': driver['points']
+            })
+        
+        # Sort by position
+        standings.sort(key=lambda x: int(x['position']))
+        
+        return jsonify({'standings': standings, 'session_key': session_key})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

@@ -120,6 +120,11 @@
                 <h2>🏆 Latest Race</h2>
                 <div id="latest-race" class="loading">Loading...</div>
             </div>
+
+            <div class="card">
+                <h2>🏆 Driver Standings</h2>
+                <div id="standings" class="loading">Loading...</div>
+            </div>
             
             <div class="card">
                 <h2>💻 System Metrics</h2>
@@ -146,6 +151,27 @@
                 return null;
             }
         }
+
+        async function updateStandings() {
+            const data = await fetchData('/f1/driver-standings');
+            const container = document.getElementById('standings');
+            
+            if (data && data.standings && data.standings.length > 0 && !data.error) {
+                        let html = '';
+                data.standings.slice(0, 10).forEach(driver => {
+                    html += `
+                        <div class="info-row">
+                            <span class="label">P${driver.position}</span>
+                            <span class="value">Driver #${driver.driver_number} - ${driver.points} pts</span>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = `<div class="error">${data?.error || 'No championship data available yet'}</div>`;
+            }
+        }
+
         
         async function updateNextRace() {
             const data = await fetchData('/f1/next-race');
@@ -261,6 +287,7 @@
         // Initial load
         updateNextRace();
         updateLatestRace();
+        updateStandings();
         updateMetrics();
         updateK8sInfo();
         
@@ -274,6 +301,7 @@
         setInterval(() => {
             updateNextRace();
             updateLatestRace();
+            updateStandings();
         }, 300000);
     </script>
 </body>
