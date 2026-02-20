@@ -10,10 +10,10 @@ app = Flask(__name__)
 
 try:
     redis_client = redis.Redis(
-        host=os.environ.get('REDIS_HOST', 'redis-master'),
-        port=int(os.environ.get('REDIS_PORT', '6379')),
+        host=os.environ.get("REDIS_HOST", "redis-master"),
+        port=int(os.environ.get("REDIS_PORT", "6379")),
         decode_responses=True,
-        socket_connect_timeout=2
+        socket_connect_timeout=2,
     )
     redis_client.ping()
     print("✓ Connected to Redis")
@@ -22,7 +22,9 @@ except Exception as e:
     redis_client = None
 
 # Prometheus metrics
-api_requests = Counter("api_requests_total", "Total API requests", ["endpoint", "method"])
+api_requests = Counter(
+    "api_requests_total", "Total API requests", ["endpoint", "method"]
+)
 cpu_usage = Gauge("system_cpu_percent", "CPU usage percentage")
 memory_usage = Gauge("system_memory_percent", "Memory usage percentage")
 disk_usage = Gauge("system_disk_percent", "Disk usage percentage")
@@ -88,9 +90,16 @@ def get_pod_details():
                 pod_info = {
                     "name": item["metadata"]["name"],
                     "status": item["status"]["phase"],
-                    "ready": sum(1 for c in item["status"].get("containerStatuses", []) if c.get("ready", False)),
+                    "ready": sum(
+                        1
+                        for c in item["status"].get("containerStatuses", [])
+                        if c.get("ready", False)
+                    ),
                     "total_containers": len(item["spec"]["containers"]),
-                    "restarts": sum(c.get("restartCount", 0) for c in item["status"].get("containerStatuses", [])),
+                    "restarts": sum(
+                        c.get("restartCount", 0)
+                        for c in item["status"].get("containerStatuses", [])
+                    ),
                     "age": item["metadata"]["creationTimestamp"],
                 }
                 pods.append(pod_info)
@@ -130,55 +139,60 @@ def get_environment():
 
 @app.route("/f1/next-race")
 def next_f1_race():
-# Try to get from cache first
+    # Try to get from cache first
     if redis_client:
         try:
-            cached = redis_client.get('f1:next-race')
+            cached = redis_client.get("f1:next-race")
             if cached:
                 print("✓ Returning cached next race")
                 return jsonify(eval(cached))
         except Exception as e:
             print(f"Cache read error: {e}")
-    
+
     # Cache miss or no Redis - fetch from API
     try:
-        response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
+        response = requests.get(
+            "https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5
+        )
         response.raise_for_status()
         data = response.json()
-        
+
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
-        
+
         for session in data:
-            session_date = datetime.fromisoformat(session['date_start'])
+            session_date = datetime.fromisoformat(session["date_start"])
             if session_date > now:
                 result = {
-                    'location': session['location'],
-                    'country': session['country_name'],
-                    'date': session['date_start'],
-                    'circuit': session['circuit_short_name'],
-                    'session_type': session['session_type']
+                    "location": session["location"],
+                    "country": session["country_name"],
+                    "date": session["date_start"],
+                    "circuit": session["circuit_short_name"],
+                    "session_type": session["session_type"],
                 }
-                
+
                 # Cache for 1 hour (3600 seconds)
                 if redis_client:
                     try:
-                        redis_client.setex('f1:next-race', 3600, str(result))
+                        redis_client.setex("f1:next-race", 3600, str(result))
                         print("✓ Cached next race for 1 hour")
                     except Exception as e:
                         print(f"Cache write error: {e}")
-                
+
                 return jsonify(result)
-        
-        return jsonify({'message': 'No upcoming race found'}), 404
+
+        return jsonify({"message": "No upcoming race found"}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/f1/latest-race")
 def latest_race():
     try:
-        response = requests.get("https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5)
+        response = requests.get(
+            "https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5
+        )
         response.raise_for_status()
         data = response.json()
 
@@ -213,7 +227,9 @@ def latest_race():
 def driver_standings():
     try:
         # First get the most recent race session
-        response = requests.get("https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5)
+        response = requests.get(
+            "https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5
+        )
         response.raise_for_status()
         sessions = response.json()
 
