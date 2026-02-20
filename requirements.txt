@@ -3,3 +3,4 @@ psutil==5.9.6
 gunicorn==21.2.0
 requests==2.31.0
 prometheus-client==0.24.1
+redis==5.0.1

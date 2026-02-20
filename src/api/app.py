@@ -3,9 +3,23 @@ import psutil
 import subprocess
 import os
 import requests
+import redis
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(__name__)
+
+try:
+    redis_client = redis.Redis(
+        host=os.environ.get('REDIS_HOST', 'redis-master'),
+        port=int(os.environ.get('REDIS_PORT', '6379')),
+        decode_responses=True,
+        socket_connect_timeout=2
+    )
+    redis_client.ping()
+    print("✓ Connected to Redis")
+except Exception as e:
+    print(f"✗ Redis not available: {e}")
+    redis_client = None
 
 # Prometheus metrics
 api_requests = Counter("api_requests_total", "Total API requests", ["endpoint", "method"])
@@ -116,31 +130,49 @@ def get_environment():
 
 @app.route("/f1/next-race")
 def next_f1_race():
+# Try to get from cache first
+    if redis_client:
+        try:
+            cached = redis_client.get('f1:next-race')
+            if cached:
+                print("✓ Returning cached next race")
+                return jsonify(eval(cached))
+        except Exception as e:
+            print(f"Cache read error: {e}")
+    
+    # Cache miss or no Redis - fetch from API
     try:
-        response = requests.get("https://api.openf1.org/v1/sessions?session_name=Race&year=2026", timeout=5)
+        response = requests.get('https://api.openf1.org/v1/sessions?session_name=Race&year=2026', timeout=5)
         response.raise_for_status()
         data = response.json()
-
+        
         from datetime import datetime, timezone
-
         now = datetime.now(timezone.utc)
-
+        
         for session in data:
-            session_date = datetime.fromisoformat(session["date_start"])
+            session_date = datetime.fromisoformat(session['date_start'])
             if session_date > now:
-                return jsonify(
-                    {
-                        "location": session["location"],
-                        "country": session["country_name"],
-                        "date": session["date_start"],
-                        "circuit": session["circuit_short_name"],
-                        "session_type": session["session_type"],
-                    }
-                )
-
-        return jsonify({"message": "No upcoming race found"}), 404
+                result = {
+                    'location': session['location'],
+                    'country': session['country_name'],
+                    'date': session['date_start'],
+                    'circuit': session['circuit_short_name'],
+                    'session_type': session['session_type']
+                }
+                
+                # Cache for 1 hour (3600 seconds)
+                if redis_client:
+                    try:
+                        redis_client.setex('f1:next-race', 3600, str(result))
+                        print("✓ Cached next race for 1 hour")
+                    except Exception as e:
+                        print(f"Cache write error: {e}")
+                
+                return jsonify(result)
+        
+        return jsonify({'message': 'No upcoming race found'}), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route("/f1/latest-race")
