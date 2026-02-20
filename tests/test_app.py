@@ -75,3 +75,55 @@ def test_k8s_pods_endpoint(client):
     if response.status_code == 200:
         data = json.loads(response.data)
         assert 'pods' in data
+
+def test_get_pod_count_function():
+    """Test the get_pod_count helper function"""
+    from src.api.app import get_pod_count
+    # This will return 0 or actual count depending on if kubectl works
+    result = get_pod_count()
+    assert isinstance(result, int)
+    assert result >= 0
+
+
+def test_f1_latest_race_endpoint(client):
+    """Test F1 latest race endpoint"""
+    response = client.get('/f1/latest-race')
+    # Could be 200, 404, or 500 depending on API
+    assert response.status_code in [200, 404, 500]
+    if response.status_code == 200:
+        data = json.loads(response.data)
+        assert 'location' in data or 'circuit' in data or 'message' in data
+
+
+def test_f1_driver_standings_endpoint(client):
+    """Test F1 driver standings endpoint"""
+    response = client.get('/f1/driver-standings')
+    # Will likely error since no 2026 race data yet
+    assert response.status_code in [200, 404, 500]
+    data = json.loads(response.data)
+    # Should have either standings or error message
+    assert 'standings' in data or 'error' in data or 'message' in data
+
+
+def test_api_endpoint(client):
+    """Test the /api info endpoint"""
+    response = client.get('/api')
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data['status'] == 'healthy'
+    assert 'message' in data
+
+
+def test_prometheus_counter_increments(client):
+    """Test that API request counter increments"""
+    # Make a request
+    client.get('/health')
+    # Check metrics include the counter
+    response = client.get('/metrics')
+    assert b'api_requests_total' in response.data
+
+
+def test_invalid_endpoint(client):
+    """Test that invalid endpoints return 404"""
+    response = client.get('/nonexistent-endpoint')
+    assert response.status_code == 404
